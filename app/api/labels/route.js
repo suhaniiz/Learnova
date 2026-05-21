@@ -33,18 +33,28 @@ export async function GET(request) {
       return jsonError("Unauthorized: No token provided", 401);
     }
 
-    const decodedToken = await verifyFirebaseToken(token);
+    const authResult = await verifyFirebaseToken(token);
 
-    if (!decodedToken) {
-      return jsonError("Unauthorized: Invalid token", 401);
+    if (!authResult.valid) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          reason: authResult.reason,
+        },
+        { status: 401 }
+      );
     }
+
+    const decodedToken = authResult.decodedToken;
+
 
     // 3. Fetch Data with Projection
     const db = await connectDb();
     const users = db.collection("users");
 
     const allUsers = await users
-      .find({}, { projection: { _id: 0, name: 1, email: 1, image: 1 } })
+      .find(query, { projection: { _id: 0, name: 1, email: 1, image: 1 } })
+      .limit(50)
       .toArray();
 
     return jsonSuccess(allUsers, 200);

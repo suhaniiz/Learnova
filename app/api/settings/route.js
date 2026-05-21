@@ -78,7 +78,7 @@ export async function PATCH(request) {
     const authorization = request.headers.get("authorization");
     const token = authorization?.split(" ")[1];
 
-    const decodedToken = await verifyFirebaseToken(token);
+   const authResult = await verifyFirebaseToken(token);
 
     if (!decodedToken) {
       return jsonError("Unauthorized", 401);
