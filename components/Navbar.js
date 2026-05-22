@@ -283,13 +283,13 @@ useEffect(() => {
         className="fixed w-full top-0 left-0 right-0 z-[70] transition-all duration-300 ease-out"
         style={{
          backgroundColor:
-         theme === "dark"
+         !mounted ? "rgba(255, 255, 255, 0.95)" : theme === "dark"
          ? `rgba(0,0,0,${0.7 + scrollProgressValue * 0.2})`
           : `rgba(255,255,255,${0.95})`,
          backdropFilter: `blur(20px)`,
          WebkitBackdropFilter: `blur(20px)`,
         borderBottom:
-       theme === "dark"
+        !mounted ? "1px solid rgba(0, 0, 0, 0.08)" : theme === "dark"
       ? `1px solid rgba(255,255,255,0.1)`
       : `1px solid rgba(0,0,0,0.08)`,
 }}

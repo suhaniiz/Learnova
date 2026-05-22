@@ -30,7 +30,7 @@ class ErrorBoundary extends React.Component {
               Something went wrong
             </h2>
             <p className="text-gray-300 mb-6">
-              There was an error loading the authentication form. Please refresh
+              There was an unexpected error in the application. Please refresh
               the page and try again.
             </p>
             <button
