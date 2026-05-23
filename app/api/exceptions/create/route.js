@@ -1,6 +1,9 @@
 import { connectDb } from "@/lib/mongodb";
 import { verifyFirebaseToken } from "@/lib/firebase-admin";
 import { jsonError, jsonSuccess } from "@/lib/api-response";
+import xss from "xss";
+
+const sanitize = (text) => (typeof text === "string" ? xss(text).trim() : "");
 
 export async function POST(request) {
   try {
@@ -23,24 +26,26 @@ export async function POST(request) {
 
 
     const body = await request.json();
-    const { reason, details, date } = body;
+    const reason = sanitize(body.reason);
+    const details = sanitize(body.details);
+    const date = sanitize(body.date);
 
-    if (!reason || typeof reason !== "string" || reason.trim() === "") {
+    if (!reason) {
       return jsonError("Reason is required and must be a string", 400);
     }
-    if (!details || typeof details !== "string" || details.trim() === "") {
+    if (!details) {
       return jsonError("Details are required and must be a string", 400);
     }
-    if (!date || typeof date !== "string" || date.trim() === "") {
+    if (!date) {
       return jsonError("Date is required and must be a string", 400);
     }
 
     const db = await connectDb();
 
     const exceptionData = {
-      reason: reason.trim(),
-      details: details.trim(),
-      date: date.trim(),
+      reason,
+      details,
+      date,
       studentEmail: decodedToken.email,
       status: "pending",
       createdAt: new Date(),
