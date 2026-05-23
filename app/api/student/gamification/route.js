@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { connectDb } from "@/lib/mongodb";
 import { verifyFirebaseToken } from "@/lib/firebase-admin";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request) {
   try {
     const authorization = request.headers.get("authorization");
