@@ -128,8 +128,12 @@ export default function AuthForm({
                   placeholder="Enter your full name"
                   value={fullName}
                   onChange={(e) => {
-                    setFullName(e.target.value);
-                    clearError("fullName");
+                    const value = e.target.value;
+                    setFullName(value);
+
+                    if (errors.fullName) {
+                      validateField("fullName", value);
+                    }
                   }}
                   onBlur={(e) => validateField("fullName", e.target.value)}
                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -150,9 +154,13 @@ export default function AuthForm({
                     type="text"
                     placeholder="Enter your institute name"
                     value={instituteName}
-                    onChange={(e) => {
-                      setInstituteName(e.target.value);
-                      clearError("instituteName");
+                   onChange={(e) => {
+                      const value = e.target.value;
+                      setInstituteName(value);
+
+                      if (errors.instituteName) {
+                        validateField("instituteName", value);
+                      }
                     }}
                     onBlur={(e) => validateField("instituteName", e.target.value)}
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -182,8 +190,12 @@ export default function AuthForm({
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value);
-                  clearError("email");
+                  const value = e.target.value;
+                  setEmail(value);
+
+                  if (errors.email) {
+                    validateField("email", value);
+                  }
                 }}
                 onBlur={(e) => validateField("email", e.target.value)}
                 className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -207,8 +219,12 @@ export default function AuthForm({
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => {
-                  setPassword(e.target.value);
-                  clearError("password");
+                  const value = e.target.value;
+                  setPassword(value);
+
+                  if (errors.password) {
+                    validateField("password", value);
+                  }
                 }}
                 onBlur={(e) => validateField("password", e.target.value)}
                 className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -218,7 +234,7 @@ export default function AuthForm({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover: text-muted-foreground"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-muted-foreground"
               >
                 {showPassword ? (
                   <EyeOff className="w-5 h-5" />
