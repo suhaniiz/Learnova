@@ -1,5 +1,10 @@
 import { toast } from "react-hot-toast";
-import React, { useState, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { Navbar } from "./Navbar";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
@@ -169,6 +174,11 @@ const TeacherDashboard = () => {
   const [allRequests, setAllRequests] = useState([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [requestsError, setRequestsError] = useState(null);
+  const pendingRequests = useMemo(() => {
+  return attendanceRequests.filter(
+    (req) => req.status === "pending"
+  );
+}, [attendanceRequests]);
 
   // Dynamic teacher data
   const [teacher, setTeacher] = useState({
@@ -494,31 +504,7 @@ const TeacherDashboard = () => {
     }, 1500);
 
     const timer = setInterval(() => {
-      const now = new Date();
-      setCurrentTime(now);
-
-      // Check if it's attendance window (9:00-9:10 AM on weekdays)
-      const hour = now.getHours();
-      const minute = now.getMinutes();
-      const day = now.getDay();
-
-      const isWeekday = day >= 1 && day <= 5;
-      const isAttendanceTime = hour === 9 && minute <= 10;
-
-      setAttendanceWindow(isWeekday && isAttendanceTime);
-
-      // Get today's classes
-      const dayNames = [
-        "Sunday",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-      ];
-      const today = dayNames[day];
-      setTodayClasses(weeklySchedule[today] || []);
+      setCurrentTime(new Date());
     }, 1000);
 
     return () => {
@@ -526,6 +512,38 @@ const TeacherDashboard = () => {
       clearTimeout(loadingTimer);
     };
   }, []);
+
+  useEffect(() => {
+    const now = new Date();
+
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const day = now.getDay();
+
+    const isWeekday = day >= 1 && day <= 5;
+    const isAttendanceTime =
+      hour === 9 && minute <= 10;
+
+    setAttendanceWindow(
+      isWeekday && isAttendanceTime
+    );
+
+    const dayNames = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+
+    const today = dayNames[day];
+
+    setTodayClasses(
+      weeklySchedule[today] || []
+    );
+  }, [weeklySchedule]);
 
   const generatePasscode = async () => {
     setPasscodeLoading(true);
@@ -1233,4 +1251,4 @@ const TeacherDashboard = () => {
     </div>
   );
 };
-export default TeacherDashboard;
+export default React.memo(TeacherDashboard);
