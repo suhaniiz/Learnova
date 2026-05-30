@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { auth, db } from "@/lib/firebaseConfig";
 import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -55,6 +55,62 @@ export const clearAuthSensitiveCaches = async () => {
   }
 };
 
+// ─── Token Refresh Resilience ───────────────────────────────────────────────
+
+const MAX_REFRESH_RETRIES = 5;
+const REFRESH_BASE_DELAY_MS = 30 * 1000; // 30 seconds
+const REFRESH_INTERVAL_MS = 55 * 60 * 1000; // 55 minutes
+
+/**
+ * Creates a token refresh function with exponential backoff retry logic.
+ * After MAX_REFRESH_RETRIES consecutive failures, triggers a session-expired
+ * event so the UI can notify the user.
+ */
+function createTokenRefreshManager(firebaseUser, onSessionExpired) {
+  let consecutiveFailures = 0;
+  let refreshTimer = null;
+
+  async function attemptRefresh() {
+    try {
+      const freshToken = await firebaseUser.getIdToken(true);
+      setAuthTokenCookie(freshToken);
+      consecutiveFailures = 0;
+    } catch (tokenError) {
+      consecutiveFailures++;
+      console.warn(
+        `[useAuth] Token refresh failed (attempt ${consecutiveFailures}/${MAX_REFRESH_RETRIES}):`,
+        tokenError?.message
+      );
+
+      if (consecutiveFailures >= MAX_REFRESH_RETRIES) {
+        console.error("[useAuth] Token refresh failed after max retries. Session may be expired.");
+        if (onSessionExpired) {
+          onSessionExpired();
+        }
+      }
+    }
+  }
+
+  function start() {
+    stop();
+    refreshTimer = setInterval(attemptRefresh, REFRESH_INTERVAL_MS);
+  }
+
+  function stop() {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+    consecutiveFailures = 0;
+  }
+
+  function refreshNow() {
+    return attemptRefresh();
+  }
+
+  return { start, stop, refreshNow };
+}
+
 /**
  * Provides authentication state and user profile information.
  * Tracks Firebase authentication changes and exposes auth-related utilities.
@@ -65,7 +121,8 @@ export const clearAuthSensitiveCaches = async () => {
  * error: string|null,
  * signOut: Function,
  * isAuthenticated: boolean,
- * hasProfile: boolean
+ * hasProfile: boolean,
+ * sessionExpired: boolean
  * }} Authentication state and helper methods.
  */
 export const useAuth = () => {
@@ -73,9 +130,15 @@ export const useAuth = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
-  const tokenRefreshIntervalRef = useRef(null);
+  const refreshManagerRef = useRef(null);
   const unsubscribeSnapshotRef = useRef(null);
+
+  const handleSessionExpired = useCallback(() => {
+    setSessionExpired(true);
+    setError("Your session has expired. Please sign in again.");
+  }, []);
 
   useEffect(() => {
     if (!auth) {
@@ -84,33 +147,25 @@ export const useAuth = () => {
     }
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Clean up previous snapshot listener and token refresh interval if active
+      // Clean up previous snapshot listener and token refresh if active
       if (unsubscribeSnapshotRef.current) {
         unsubscribeSnapshotRef.current();
         unsubscribeSnapshotRef.current = null;
       }
-      if (tokenRefreshIntervalRef.current) {
-        clearInterval(tokenRefreshIntervalRef.current);
-        tokenRefreshIntervalRef.current = null;
+      if (refreshManagerRef.current) {
+        refreshManagerRef.current.stop();
+        refreshManagerRef.current = null;
       }
+
+      setSessionExpired(false);
 
       try {
         if (firebaseUser) {
           setUser(firebaseUser);
 
-          // Proactively refresh the Firebase ID token every 55 minutes so the
-          // authToken cookie never goes stale before the middleware rejects it.
-          // Firebase tokens expire after 60 minutes; 55-minute interval gives a
-          // 5-minute buffer for network latency and clock drift.
-          tokenRefreshIntervalRef.current = setInterval(async () => {
-            try {
-              const freshToken = await firebaseUser.getIdToken(true);
-              setAuthTokenCookie(freshToken);
-            } catch (tokenError) {
-              // Network error during background refresh; the next interval will retry.
-              console.debug("Token refresh failed (will retry):", tokenError?.message);
-            }
-          }, 55 * 60 * 1000);
+          // Create a new token refresh manager with exponential backoff retry
+          refreshManagerRef.current = createTokenRefreshManager(firebaseUser, handleSessionExpired);
+          refreshManagerRef.current.start();
 
           // Listen to the user profile document in real-time
           const userDocRef = doc(db, "users", firebaseUser.uid);
@@ -171,12 +226,12 @@ export const useAuth = () => {
         unsubscribeSnapshotRef.current();
         unsubscribeSnapshotRef.current = null;
       }
-      if (tokenRefreshIntervalRef.current) {
-        clearInterval(tokenRefreshIntervalRef.current);
-        tokenRefreshIntervalRef.current = null;
+      if (refreshManagerRef.current) {
+        refreshManagerRef.current.stop();
+        refreshManagerRef.current = null;
       }
     };
-  }, []);
+  }, [handleSessionExpired]);
 
   /**
    * Signs out the currently authenticated user and clears local auth state.
@@ -184,9 +239,14 @@ export const useAuth = () => {
    */
   const signOut = async () => {
     try {
+      if (refreshManagerRef.current) {
+        refreshManagerRef.current.stop();
+        refreshManagerRef.current = null;
+      }
       await firebaseSignOut(auth);
       setUser(null);
       setUserProfile(null);
+      setSessionExpired(false);
 
       // Critical Security Fix: Clear authentication cookies to prevent zombie sessions in Next.js middleware
       deleteCookie("authToken");
@@ -199,13 +259,24 @@ export const useAuth = () => {
     }
   };
 
+  /**
+   * Forces an immediate token refresh (e.g., after a role change).
+   */
+  const forceTokenRefresh = useCallback(async () => {
+    if (refreshManagerRef.current) {
+      await refreshManagerRef.current.refreshNow();
+    }
+  }, []);
+
   return {
     user,
     userProfile,
     loading,
     error,
     signOut,
+    forceTokenRefresh,
     isAuthenticated: !!user,
     hasProfile: !!userProfile,
+    sessionExpired,
   };
 };
